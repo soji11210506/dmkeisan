@@ -89,6 +89,205 @@ function showResult(title, probability, detail, distribution = null) {
   resultBox.hidden = false;
 }
 
+function showBoldugiResult(rows, availableDeckCount, forbiddenSeals) {
+  resultBox.replaceChildren();
+  addResultText(resultBox, "label", "ボルドギ成功確率");
+  addResultText(resultBox, "detail", `実際にめくれる残り山札: ${availableDeckCount}枚`);
+
+  const list = document.createElement("ul");
+  list.className = "boldugi-results";
+  for (const row of rows) {
+    const item = document.createElement("li");
+    const heading = document.createElement("h3");
+    heading.textContent = `${row.reveals}枚まで`;
+    item.append(heading);
+
+    const metrics = [
+      ["成功", row.success],
+      [forbiddenSeals === 0 ? "禁断解放済み" : "コマンドで禁断解放", row.unlock],
+      ["コッコ/ゴールデン", row.special],
+      ["普通のクリーチャー", row.ordinary],
+    ];
+    const grid = document.createElement("dl");
+    grid.className = "boldugi-metrics";
+    for (const [label, probability] of metrics) {
+      const metric = document.createElement("div");
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const value = document.createElement("dd");
+      value.textContent = `${(probability * 100).toFixed(2)}%`;
+      metric.append(term, value);
+      grid.append(metric);
+    }
+    item.append(grid);
+    list.append(item);
+  }
+  resultBox.append(list);
+  addResultText(
+    resultBox,
+    "detail",
+    "最初の呪文でめくりを停止。非公開領域のカード種類は不明としてデッキ構成から推定します。ボルドギ成功で封印1つ、コマンドで1つ、モルネクは追加で2つ外します。非クリーチャーをすべて呪文とするため、成功率は1枚目で決まります。",
+  );
+  resultBox.hidden = false;
+}
+
+function calculateBoldugi(formData, errors) {
+  const fields = [
+    ["creature_count", "クリーチャー枚数"],
+    ["private_count", "非公開領域枚数"],
+    ["cocco_public_count", "コッコ公開済み枚数"],
+    ["golden_public_count", "ゴールデン公開済み枚数"],
+    ["command_count", "コマンドクリーチャー枚数"],
+    ["command_public_count", "コマンド公開済み枚数"],
+    ["forbidden_seals", "禁断の残り封印数"],
+    ["morneku_public_count", "モルネク公開済み枚数"],
+  ];
+  const values = {};
+  for (const [name, label] of fields) {
+    const raw = formData.get(name);
+    const value = Number(raw);
+    if (raw === "" || !Number.isInteger(value)) {
+      errors.push(`${label}は整数で入力してください。`);
+    } else {
+      values[name] = value;
+    }
+  }
+  if (errors.length) return;
+
+  const deckSize = Number(formData.get("deck_size"));
+  const creatureCount = values.creature_count;
+  const privateCount = values.private_count;
+  const coccoPublic = values.cocco_public_count;
+  const goldenPublic = values.golden_public_count;
+  const commandCount = values.command_count;
+  const commandPublic = values.command_public_count;
+  const forbiddenSeals = values.forbidden_seals;
+  const mornekuPublic = values.morneku_public_count;
+
+  if (creatureCount < 12 || creatureCount > deckSize) {
+    errors.push("クリーチャー枚数は12枚以上、デッキ枚数以下にしてください（コッコ・ゴールデン・モルネク各4枚を含む）。");
+  }
+  if (privateCount < 0 || privateCount > deckSize) {
+    errors.push("非公開領域枚数は0枚以上、デッキ枚数以下にしてください。");
+  }
+  if (coccoPublic < 0 || coccoPublic > 4) {
+    errors.push("コッコ公開済み枚数は0〜4枚にしてください。");
+  }
+  if (goldenPublic < 0 || goldenPublic > 4) {
+    errors.push("ゴールデン公開済み枚数は0〜4枚にしてください。");
+  }
+  if (mornekuPublic < 0 || mornekuPublic > 4) {
+    errors.push("モルネク公開済み枚数は0〜4枚にしてください。");
+  }
+  if (commandCount < 8 || commandCount > deckSize || commandCount > creatureCount - 4) {
+    errors.push("コマンドクリーチャー枚数は8枚以上、デッキ枚数以下で、クリーチャー枚数からコッコ4枚を除いた数以下にしてください。");
+  }
+  if (commandPublic < 0 || commandPublic > commandCount) {
+    errors.push("コマンド公開済み枚数は0枚以上、コマンドクリーチャー枚数以下にしてください。");
+  }
+  if (commandPublic < goldenPublic + mornekuPublic) {
+    errors.push("コマンド公開済み枚数には、公開済みゴールデンとモルネクを含めてください。");
+  }
+  if (forbiddenSeals < 0 || forbiddenSeals > 6) {
+    errors.push("禁断の残り封印数は0〜6個にしてください。");
+  }
+  if (privateCount < forbiddenSeals) {
+    errors.push("非公開領域枚数には、禁断の残り封印数も含めてください。");
+  }
+
+  const publicCount = coccoPublic + commandPublic;
+  const availableDeckCount = deckSize - publicCount - privateCount;
+  if (publicCount + privateCount > deckSize) {
+    errors.push("公開済みカードと非公開領域の合計がデッキ枚数を超えています。");
+  } else if (availableDeckCount < 4) {
+    errors.push("公開済みカードと非公開領域を除いた山札が4枚未満です。");
+  }
+
+  const otherCommandPublic = commandPublic - goldenPublic - mornekuPublic;
+  const cardCounts = {
+    cocco: 4 - coccoPublic,
+    golden: 4 - goldenPublic,
+    morneku: 4 - mornekuPublic,
+    otherCommand: commandCount - 8 - otherCommandPublic,
+    ordinary: creatureCount - commandCount - 4,
+    spell: deckSize - creatureCount,
+  };
+  if (cardCounts.otherCommand < 0 || cardCounts.ordinary < 0 || cardCounts.spell < 0) {
+    errors.push("入力枚数の内訳がデッキ枚数と矛盾しています。コマンド公開枚数にはゴールデンとモルネクを含めてください。");
+  }
+  if (errors.length) return;
+
+  const populationSize = Object.values(cardCounts).reduce((sum, count) => sum + count, 0);
+  const rows = [];
+  for (let revealLimit = 1; revealLimit <= 4; revealLimit += 1) {
+    const totals = { success: 0, unlock: 0, special: 0, ordinary: 0 };
+
+    function record(probability, state) {
+      if (state.success) totals.success += probability;
+      if (forbiddenSeals === 0 || state.commandUnlock) totals.unlock += probability;
+      if (state.special) totals.special += probability;
+      if (state.ordinary) totals.ordinary += probability;
+    }
+
+    function visit(counts, remaining, depth, probability, state) {
+      if (depth === revealLimit || remaining === 0) {
+        record(probability, state);
+        return;
+      }
+
+      for (const [kind, count] of Object.entries(counts)) {
+        if (count === 0) continue;
+        const nextProbability = probability * count / remaining;
+        counts[kind] -= 1;
+
+        if (kind === "spell") {
+          record(nextProbability, state);
+        } else {
+          const isCreature = true;
+          const firstCreature = isCreature && !state.success;
+          const nextState = {
+            success: state.success || isCreature,
+            special: state.special || kind === "cocco" || kind === "golden",
+            ordinary: state.ordinary || kind === "ordinary" || kind === "otherCommand",
+            sealsRemoved: state.sealsRemoved + (firstCreature ? 1 : 0),
+            commandUnlock: state.commandUnlock,
+          };
+          if (kind === "golden" || kind === "morneku" || kind === "otherCommand") {
+            const previousSealsRemoved = nextState.sealsRemoved;
+            const commandReduction = 1 + (kind === "morneku" ? 2 : 0);
+            nextState.sealsRemoved += commandReduction;
+            if (
+              forbiddenSeals > 0 &&
+              previousSealsRemoved < forbiddenSeals &&
+              nextState.sealsRemoved >= forbiddenSeals
+            ) {
+              nextState.commandUnlock = true;
+            }
+          }
+          if (depth + 1 === revealLimit) {
+            record(nextProbability, nextState);
+          } else {
+            visit(counts, remaining - 1, depth + 1, nextProbability, nextState);
+          }
+        }
+
+        counts[kind] += 1;
+      }
+    }
+
+    visit(
+      { ...cardCounts },
+      populationSize,
+      0,
+      1,
+      { success: false, special: false, ordinary: false, sealsRemoved: 0, commandUnlock: false },
+    );
+    rows.push({ reveals: revealLimit, ...totals });
+  }
+
+  showBoldugiResult(rows, availableDeckCount, forbiddenSeals);
+}
+
 function calculateDraw(formData, errors) {
   const deckSize = Number(formData.get("deck_size"));
   const targetRaw = formData.get("target_count");
@@ -176,7 +375,8 @@ form.addEventListener("submit", (event) => {
 
   if (!errors.length) {
     if (modeSelect.value === "draw") calculateDraw(formData, errors);
-    else calculateShield(formData, errors);
+    else if (modeSelect.value === "shield") calculateShield(formData, errors);
+    else calculateBoldugi(formData, errors);
   }
   showErrors(errors);
 });

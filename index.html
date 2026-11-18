@@ -22,6 +22,7 @@
           <select name="mode" id="mode">
             <option value="draw">ドロー計算</option>
             <option value="shield">シールドトリガー確率計算</option>
+            <option value="boldugi">ボルドギ成功確率</option>
           </select>
         </label>
 
@@ -72,6 +73,74 @@
             <small>枚</small>
           </div>
         </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>自分のデッキのクリーチャー</span>
+          <div class="input-wrap">
+            <input type="number" name="creature_count" min="12" max="60" value="24">
+            <small>枚</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>非公開領域（シールド・封印など）</span>
+          <div class="input-wrap">
+            <input type="number" name="private_count" min="0" max="60" value="11">
+            <small>枚</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>コッコ公開済み</span>
+          <div class="input-wrap">
+            <input type="number" name="cocco_public_count" min="0" max="4" value="0">
+            <small>枚 / 4枚中</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>ゴールデン公開済み</span>
+          <div class="input-wrap">
+            <input type="number" name="golden_public_count" min="0" max="4" value="0">
+            <small>枚 / 4枚中</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>コマンドクリーチャー</span>
+          <div class="input-wrap">
+            <input type="number" name="command_count" min="8" max="60" value="12">
+            <small>枚（ゴールデン・モルネク含む）</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>コマンド公開済み</span>
+          <div class="input-wrap">
+            <input type="number" name="command_public_count" min="0" max="60" value="0">
+            <small>枚（ゴールデン・モルネク含む）</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>禁断の残り封印</span>
+          <div class="input-wrap">
+            <input type="number" name="forbidden_seals" min="0" max="6" value="6">
+            <small>個</small>
+          </div>
+        </label>
+
+        <label class="field mode-field" data-mode="boldugi" hidden>
+          <span>モルネク公開済み</span>
+          <div class="input-wrap">
+            <input type="number" name="morneku_public_count" min="0" max="4" value="0">
+            <small>枚 / 4枚中</small>
+          </div>
+        </label>
+
+        <p class="mode-note mode-field" data-mode="boldugi" hidden>
+          デッキ枚数と種類別枚数は、非公開領域と公開済みカードを差し引く前の数です。公開済みカードは山札に残っていない枚数を入力してください。非公開領域のカード種類は不明として計算し、非クリーチャーは呪文として扱います。
+        </p>
 
         <button type="submit">計算する</button>
       </form>

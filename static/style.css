@@ -58,6 +58,17 @@ h1 {
   display: none;
 }
 
+.mode-note {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.mode-note[hidden] {
+  display: none;
+}
+
 .field span {
   display: block;
   margin-bottom: 8px;
@@ -196,6 +207,49 @@ button {
 
 .distribution strong {
   color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.boldugi-results {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.boldugi-results > li {
+  padding: 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.boldugi-results h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.boldugi-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+
+.boldugi-metrics > div {
+  min-width: 0;
+}
+
+.boldugi-metrics dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.boldugi-metrics dd {
+  margin: 3px 0 0;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
