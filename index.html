@@ -22,7 +22,7 @@
           <select name="mode" id="mode">
             <option value="draw">ドロー計算</option>
             <option value="shield">シールドトリガー確率計算</option>
-            <option value="boldugi">ボルドギ成功確率</option>
+            <option value="boldugi">ボルドギ成功確率(β版)</option>
           </select>
         </label>
 
@@ -83,14 +83,6 @@
         </label>
 
         <label class="field mode-field" data-mode="boldugi" hidden>
-          <span>非公開領域（シールド・封印など）</span>
-          <div class="input-wrap">
-            <input type="number" name="private_count" min="0" max="60" value="11">
-            <small>枚</small>
-          </div>
-        </label>
-
-        <label class="field mode-field" data-mode="boldugi" hidden>
           <span>コッコ公開済み</span>
           <div class="input-wrap">
             <input type="number" name="cocco_public_count" min="0" max="4" value="0">
@@ -123,7 +115,7 @@
         </label>
 
         <label class="field mode-field" data-mode="boldugi" hidden>
-          <span>禁断の残り封印</span>
+          <span>禁断の残り封印（シールド0枚時）</span>
           <div class="input-wrap">
             <input type="number" name="forbidden_seals" min="0" max="6" value="6">
             <small>個</small>
@@ -139,7 +131,7 @@
         </label>
 
         <p class="mode-note mode-field" data-mode="boldugi" hidden>
-          デッキ枚数と種類別枚数は、非公開領域と公開済みカードを差し引く前の数です。公開済みカードは山札に残っていない枚数を入力してください。非公開領域のカード種類は不明として計算し、非クリーチャーは呪文として扱います。
+          デッキ枚数と種類別枚数は公開済みカードを差し引く前の数です。公開済みカードは山札に残っていない枚数を入力してください。シールド枚数は計算に含めず、封印数だけを残り山札から差し引きます。非クリーチャーは呪文として扱います。
         </p>
 
         <button type="submit">計算する</button>

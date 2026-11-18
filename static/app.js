@@ -99,11 +99,11 @@ function showBoldugiResult(rows, availableDeckCount, forbiddenSeals) {
   for (const row of rows) {
     const item = document.createElement("li");
     const heading = document.createElement("h3");
-    heading.textContent = `${row.reveals}枚まで`;
+    heading.textContent = `${row.reveals}枚目（前のカードがすべてクリーチャーの場合）`;
     item.append(heading);
 
     const metrics = [
-      ["成功", row.success],
+      ["次の1枚もクリーチャー", row.success],
       [forbiddenSeals === 0 ? "禁断解放済み" : "コマンドで禁断解放", row.unlock],
       ["コッコ/ゴールデン", row.special],
       ["普通のクリーチャー", row.ordinary],
@@ -126,7 +126,7 @@ function showBoldugiResult(rows, availableDeckCount, forbiddenSeals) {
   addResultText(
     resultBox,
     "detail",
-    "最初の呪文でめくりを停止。非公開領域のカード種類は不明としてデッキ構成から推定します。ボルドギ成功で封印1つ、コマンドで1つ、モルネクは追加で2つ外します。非クリーチャーをすべて呪文とするため、成功率は1枚目で決まります。",
+    "各枚目の確率は、前のカードがすべてクリーチャーだった条件で計算しています。カードは重複なしで山札から除き、最初の呪文が出たら以降はめくりません。封印中のカード種類は不明としてデッキ構成から推定します。ボルドギで封印1つ、コマンドで1つ、モルネクは追加で2つ外します。",
   );
   resultBox.hidden = false;
 }
@@ -134,7 +134,6 @@ function showBoldugiResult(rows, availableDeckCount, forbiddenSeals) {
 function calculateBoldugi(formData, errors) {
   const fields = [
     ["creature_count", "クリーチャー枚数"],
-    ["private_count", "非公開領域枚数"],
     ["cocco_public_count", "コッコ公開済み枚数"],
     ["golden_public_count", "ゴールデン公開済み枚数"],
     ["command_count", "コマンドクリーチャー枚数"],
@@ -156,7 +155,6 @@ function calculateBoldugi(formData, errors) {
 
   const deckSize = Number(formData.get("deck_size"));
   const creatureCount = values.creature_count;
-  const privateCount = values.private_count;
   const coccoPublic = values.cocco_public_count;
   const goldenPublic = values.golden_public_count;
   const commandCount = values.command_count;
@@ -166,9 +164,6 @@ function calculateBoldugi(formData, errors) {
 
   if (creatureCount < 12 || creatureCount > deckSize) {
     errors.push("クリーチャー枚数は12枚以上、デッキ枚数以下にしてください（コッコ・ゴールデン・モルネク各4枚を含む）。");
-  }
-  if (privateCount < 0 || privateCount > deckSize) {
-    errors.push("非公開領域枚数は0枚以上、デッキ枚数以下にしてください。");
   }
   if (coccoPublic < 0 || coccoPublic > 4) {
     errors.push("コッコ公開済み枚数は0〜4枚にしてください。");
@@ -191,16 +186,12 @@ function calculateBoldugi(formData, errors) {
   if (forbiddenSeals < 0 || forbiddenSeals > 6) {
     errors.push("禁断の残り封印数は0〜6個にしてください。");
   }
-  if (privateCount < forbiddenSeals) {
-    errors.push("非公開領域枚数には、禁断の残り封印数も含めてください。");
-  }
-
   const publicCount = coccoPublic + commandPublic;
-  const availableDeckCount = deckSize - publicCount - privateCount;
-  if (publicCount + privateCount > deckSize) {
-    errors.push("公開済みカードと非公開領域の合計がデッキ枚数を超えています。");
+  const availableDeckCount = deckSize - publicCount - forbiddenSeals;
+  if (publicCount + forbiddenSeals > deckSize) {
+    errors.push("公開済みカードと禁断の残り封印数の合計がデッキ枚数を超えています。");
   } else if (availableDeckCount < 4) {
-    errors.push("公開済みカードと非公開領域を除いた山札が4枚未満です。");
+    errors.push("公開済みカードと禁断の残り封印数を除いた山札が4枚未満です。");
   }
 
   const otherCommandPublic = commandPublic - goldenPublic - mornekuPublic;
@@ -217,70 +208,71 @@ function calculateBoldugi(formData, errors) {
   }
   if (errors.length) return;
 
-  const populationSize = Object.values(cardCounts).reduce((sum, count) => sum + count, 0);
+  const populationSize = deckSize - publicCount;
   const rows = [];
   for (let revealLimit = 1; revealLimit <= 4; revealLimit += 1) {
     const totals = { success: 0, unlock: 0, special: 0, ordinary: 0 };
 
-    function record(probability, state) {
-      if (state.success) totals.success += probability;
-      if (forbiddenSeals === 0 || state.commandUnlock) totals.unlock += probability;
-      if (state.special) totals.special += probability;
-      if (state.ordinary) totals.ordinary += probability;
+    function addNextCardOutcomes(probability, counts, depth, state) {
+      const remainingCards = populationSize - depth;
+      for (const [kind, count] of Object.entries(counts)) {
+        if (count === 0) continue;
+        const nextProbability = probability * count / remainingCards;
+        const isCreature = kind !== "spell";
+        const sealsRemoved = state.sealsRemoved +
+          (isCreature && depth === 0 ? 1 : 0) +
+          (kind === "golden" || kind === "morneku" || kind === "otherCommand"
+            ? 1 + (kind === "morneku" ? 2 : 0)
+            : 0);
+
+        totals.success += nextProbability * (isCreature ? 1 : 0);
+        if (forbiddenSeals === 0 || sealsRemoved >= forbiddenSeals) {
+          totals.unlock += nextProbability;
+        }
+        if (state.special || kind === "cocco" || kind === "golden") {
+          totals.special += nextProbability;
+        }
+        if (state.ordinary || kind === "ordinary" || kind === "otherCommand") {
+          totals.ordinary += nextProbability;
+        }
+      }
     }
 
-    function visit(counts, remaining, depth, probability, state) {
-      if (depth === revealLimit || remaining === 0) {
-        record(probability, state);
+    function visitCreaturePrefix(counts, depth, probability, state) {
+      if (depth === revealLimit - 1) {
+        addNextCardOutcomes(probability, counts, depth, state);
         return;
       }
 
+      const remainingCreatures = Object.entries(counts)
+        .filter(([kind]) => kind !== "spell")
+        .reduce((sum, [, count]) => sum + count, 0);
+      if (remainingCreatures === 0) return;
+
       for (const [kind, count] of Object.entries(counts)) {
-        if (count === 0) continue;
-        const nextProbability = probability * count / remaining;
+        if (kind === "spell" || count === 0) continue;
+        const nextProbability = probability * count / remainingCreatures;
         counts[kind] -= 1;
-
-        if (kind === "spell") {
-          record(nextProbability, state);
-        } else {
-          const isCreature = true;
-          const firstCreature = isCreature && !state.success;
-          const nextState = {
-            success: state.success || isCreature,
-            special: state.special || kind === "cocco" || kind === "golden",
-            ordinary: state.ordinary || kind === "ordinary" || kind === "otherCommand",
-            sealsRemoved: state.sealsRemoved + (firstCreature ? 1 : 0),
-            commandUnlock: state.commandUnlock,
-          };
-          if (kind === "golden" || kind === "morneku" || kind === "otherCommand") {
-            const previousSealsRemoved = nextState.sealsRemoved;
-            const commandReduction = 1 + (kind === "morneku" ? 2 : 0);
-            nextState.sealsRemoved += commandReduction;
-            if (
-              forbiddenSeals > 0 &&
-              previousSealsRemoved < forbiddenSeals &&
-              nextState.sealsRemoved >= forbiddenSeals
-            ) {
-              nextState.commandUnlock = true;
-            }
-          }
-          if (depth + 1 === revealLimit) {
-            record(nextProbability, nextState);
-          } else {
-            visit(counts, remaining - 1, depth + 1, nextProbability, nextState);
-          }
-        }
-
+        const firstCreature = depth === 0;
+        const nextState = {
+          special: state.special || kind === "cocco" || kind === "golden",
+          ordinary: state.ordinary || kind === "ordinary" || kind === "otherCommand",
+          sealsRemoved: state.sealsRemoved +
+            (firstCreature ? 1 : 0) +
+            (kind === "golden" || kind === "morneku" || kind === "otherCommand"
+              ? 1 + (kind === "morneku" ? 2 : 0)
+              : 0),
+        };
+        visitCreaturePrefix(counts, depth + 1, nextProbability, nextState);
         counts[kind] += 1;
       }
     }
 
-    visit(
+    visitCreaturePrefix(
       { ...cardCounts },
-      populationSize,
       0,
       1,
-      { success: false, special: false, ordinary: false, sealsRemoved: 0, commandUnlock: false },
+      { special: false, ordinary: false, sealsRemoved: 0 },
     );
     rows.push({ reveals: revealLimit, ...totals });
   }
