@@ -154,6 +154,14 @@ button {
   padding: 18px 16px 16px;
 }
 
+.disclaimer {
+  margin: 24px 2px 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.7;
+  text-align: center;
+}
+
 .label {
   margin: 0 0 10px;
   color: var(--muted);
